@@ -4,6 +4,10 @@ cells: .zero 30000 # cells for execution
 
 .data
 intro: .asciz "\n------------------------------\n\x1b[91m.-<[\x1b[95m brain-4k interpreter \x1b[91m]>+,    \x1b[0m \n------------------------------\n"
+info_1: .asciz "\nCell adress: %ld, \t\t"
+info_2: .asciz "cell data: %ld, \n"
+info_3: .asciz "Instruction adress: %ld, "
+info_4: .asciz "\tlast instruction: %c \n\n"
 prompt: .asciz "\x1b[96m> bf: \x1b[0m"
 format_command: .asciz " %lc"
 format_num_in: .asciz "%ld"
@@ -70,13 +74,23 @@ jumptable:
     jmp jumptable_end
 
   square_br_r: # ]
+
     cmpq $0, (%r13)
-    jmp jumptable_end
+    jle jumptable_end
+    popq %r13
+    jmp angle_br_r
+
   # jump back to the command after [ if non-zero
 
   square_br_l: # [
+    pushq %r13
     cmpq $0, (%r13)
-    jmp jumptable_end
+    jne jumptable_end
+    while_not_br_r:
+      incq %r12
+      cmpq $']', (%r12)
+      jne while_not_br_r
+
   # jump to the command after ] if zero
 
   angle_br_r: # >
@@ -109,6 +123,27 @@ main:
 
   loop_input:
     # prompt input from user
+    movq %r13, %rsi
+    movq $info_1, %rdi
+    movq $0, %rax
+    call printf
+
+    movq (%r13), %rsi
+    movq $info_2, %rdi
+    movq $0, %rax
+    call printf
+
+    movq %r12, %rsi
+    movq $info_3, %rdi
+    movq $0, %rax
+    call printf
+
+    movq -1(%r12), %rsi
+    movq $info_4, %rdi
+    movq $0, %rax
+    call printf
+
+
     movq $prompt, %rdi
     movq $0, %rax
     call printf
