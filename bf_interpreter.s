@@ -1,15 +1,14 @@
+.bss
+program: .zero 30000 # space for the program
+cells: .zero 30000 # cells for execution
+
 .data
 intro: .asciz "\n------------------------------\n\x1b[91m.-<[\x1b[95m brain-4k interpreter \x1b[91m]>+,    \x1b[0m \n------------------------------\n"
 prompt: .asciz "\x1b[96m> bf: \x1b[0m"
 format_command: .asciz " %lc"
 format_num_in: .asciz "%ld"
-format_line: .asciz " %s"
+format_line: .asciz "%s"
 formatout: .asciz "%d \n"
-
-program: .zero 30000 # space for the program
-cells: .zero 30000 # cells for execution
-
-word: .byte 1
 
 # The eight language commands each consist of a single character:
 # Character 	Meaning
@@ -29,66 +28,68 @@ jumptable:
   pushq %rbp
   movq %rsp, %rbp
 
-  cmp $'+', %rdi
+  cmpb $'+', (%r12)
   je plus
-  cmp $'-', %rdi
+  cmpb $'-', (%r12)
   je minus
-  cmp $'.', %rdi
+  cmpb $'.', (%r12)
   je dot
-  cmp $',', %rdi
+  cmpb $',', (%r12)
   je comma
-  cmp $']', %rdi
+  cmpb $']', (%r12)
   je angle_br_r
-  cmp $'[', %rdi
+  cmpb $'[', (%r12)
   je angle_br_l
-  cmp $'>', %rdi
+  cmpb $'>', (%r12)
   je angle_br_r
-  cmp $'<', %rdi
+  cmpb $'<', (%r12)
   je angle_br_l
 
-  jmp end
+  jmp jumptable_end
 
   plus: # +
-    incq (%rbp)
+    incq (%r13)
     jmp jumptable_end
 
   minus: # -
-    decq (%rbp)
+    decq (%r13)
     jmp jumptable_end
 
   dot: # .
-    movq (%rbp), %rsi
+    movq (%r13), %rsi
     movq $formatout, %rdi
     movq $0, %rax
     call printf
     jmp jumptable_end
 
   comma: # ,
-    leaq (%rbp), %rsi
+    leaq (%r13), %rsi
     movq $format_num_in, %rdi
     movq $0, %rax
     call scanf
     jmp jumptable_end
 
   square_br_r: # ]
-    cmpq $0, (%rbp)
+    cmpq $0, (%r13)
     jmp jumptable_end
   # jump back to the command after [ if non-zero
 
   square_br_l: # [
-    cmpq $0, (%rbp)
+    cmpq $0, (%r13)
     jmp jumptable_end
   # jump to the command after ] if zero
 
   angle_br_r: # >
-    addq $word, %rbp
+    addq $8, %r13
     jmp jumptable_end
 
   angle_br_l: # <
-    subq $word, %rbp
+    subq $8, %r13
     jmp jumptable_end
 
 jumptable_end:
+  incq %r12
+
   movq %rbp, %rsp
   popq %rbp
   ret
@@ -103,23 +104,27 @@ main:
   movq $0, %rax
   call printf
 
-  loop:
+  movq $cells, %r13
+  movq $program, %r12
+
+  loop_input:
     # prompt input from user
     movq $prompt, %rdi
     movq $0, %rax
     call printf
 
     # allocate space for input and read input
-    subq $8, %rsp
-    leaq (%rsp), %rsi
-    movq $format_command, %rdi
+    movq %r12, %rsi
+    movq $format_line, %rdi
     movq $0, %rax
     call scanf
 
-    movq (%rsp), %rdi
+    loop_instruction:
+      call jumptable
+      cmpq $0, (%r12)
 
-    call jumptable
-    call loop
+      je loop_input
+      jmp loop_instruction
 
   end:
   call exit
